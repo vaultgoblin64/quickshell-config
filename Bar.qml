@@ -37,10 +37,130 @@ Scope {
     // Settings state
     property bool settingsVisible: false
 
+    // Launcher state
+    property bool launcherVisible: false
+    property string launcherQuery: ""
+    property var launcherResults: []      // All matching results (max 5)
+    property int launcherSelectedIndex: 0 // Currently selected result
+    property var launcherResult: launcherResults.length > 0 ? launcherResults[launcherSelectedIndex] : null
+
+    // Ghost-text completion state
+    property string launcherOriginalQuery: ""   // Query before Tab-completion (for cycling)
+    property bool launcherCompletionMode: false // Are we in Tab-cycle mode?
+    property string launcherGhostText: {
+        if (!launcherResult) return ""
+        // Calculator: show " = result"
+        if (launcherResult.type === "calc") {
+            return launcherResult.name  // Already formatted as "= X"
+        }
+        // App: show remaining characters if prefix matches
+        let name = launcherResult.name
+        let query = launcherQuery
+        if (name.toLowerCase().startsWith(query.toLowerCase())) {
+            return name.substring(query.length)
+        }
+        return ""
+    }
+
     // Configurable apps (change these to your preferred tools)
     property string terminalApp: "kitty"
     property string networkManager: "nmtui"        // Alternatives: nm-connection-editor, iwctl
     property string bluetoothManager: "bluetui"    // Alternatives: blueman-manager, bluetoothctl
+
+    // Time format configuration (for future Settings menu)
+    property string timeFormat: "24h"              // "24h" or "12h"
+    property string timeSuffix: " Uhr"             // Suffix after time (e.g., " Uhr", " AM/PM" handled by format)
+
+    // Format time helper function
+    function formatTime(date) {
+        if (!date) date = new Date()
+        let hours = date.getHours()
+        let minutes = date.getMinutes().toString().padStart(2, '0')
+
+        if (root.timeFormat === "12h") {
+            let period = hours >= 12 ? "PM" : "AM"
+            hours = hours % 12 || 12
+            return hours + ":" + minutes + " " + period
+        }
+        return hours.toString().padStart(2, '0') + ":" + minutes + root.timeSuffix
+    }
+
+    // Update launcher results based on query (max 5 results)
+    function updateLauncherResult() {
+        let query = root.launcherQuery.trim()
+        if (query.length === 0) {
+            root.launcherResults = []
+            root.launcherSelectedIndex = 0
+            return
+        }
+
+        let results = []
+
+        // Check if it's a math expression (numbers and operators only)
+        if (/^[\d\s\+\-\*\/\(\)\.\,\%]+$/.test(query)) {
+            try {
+                let expr = query.replace(/,/g, '.').replace(/%/g, '/100')
+                let calcResult = Function('"use strict"; return (' + expr + ')')()
+                if (typeof calcResult === 'number' && !isNaN(calcResult)) {
+                    results.push({ type: "calc", name: "= " + calcResult, entry: null })
+                }
+            } catch(e) {}
+        }
+
+        // Search in applications (startsWith first, then includes)
+        let queryLower = query.toLowerCase()
+        let apps = DesktopEntries.applications.values
+        let startsWithMatches = []
+        let containsMatches = []
+
+        for (let i = 0; i < apps.length; i++) {
+            let nameLower = apps[i].name.toLowerCase()
+            if (nameLower.startsWith(queryLower)) {
+                startsWithMatches.push({ type: "app", name: apps[i].name, entry: apps[i] })
+            } else if (nameLower.includes(queryLower)) {
+                containsMatches.push({ type: "app", name: apps[i].name, entry: apps[i] })
+            }
+        }
+
+        // Combine: calc first, then startsWith, then contains (max 5 total)
+        results = results.concat(startsWithMatches, containsMatches).slice(0, 5)
+
+        root.launcherResults = results
+        // Reset selection if out of bounds
+        if (root.launcherSelectedIndex >= results.length) {
+            root.launcherSelectedIndex = 0
+        }
+    }
+
+    // Execute launcher result
+    function executeLauncherResult() {
+        if (!root.launcherResult) return
+
+        if (root.launcherResult.type === "app" && root.launcherResult.entry) {
+            root.launcherResult.entry.execute()
+        }
+        // For calc, result is just displayed (could copy to clipboard later)
+
+        root.launcherVisible = false
+        root.launcherQuery = ""
+        root.launcherResults = []
+        root.launcherSelectedIndex = 0
+        root.launcherCompletionMode = false
+        root.launcherOriginalQuery = ""
+    }
+
+    // Navigate launcher results
+    function launcherNextResult() {
+        if (root.launcherResults.length > 1) {
+            root.launcherSelectedIndex = (root.launcherSelectedIndex + 1) % root.launcherResults.length
+        }
+    }
+
+    function launcherPrevResult() {
+        if (root.launcherResults.length > 1) {
+            root.launcherSelectedIndex = (root.launcherSelectedIndex - 1 + root.launcherResults.length) % root.launcherResults.length
+        }
+    }
 
     // Notification history model
     ListModel {
@@ -69,7 +189,7 @@ Scope {
                 appIcon: notification.appIcon || "",
                 image: notification.image || "",
                 urgency: notification.urgency || 1,
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: root.formatTime(new Date()),
                 desktopEntry: notification.desktopEntry || "",
                 expireTime: Date.now() + (notification.expireTimeout > 0 ? notification.expireTimeout * 1000 : 5000)
             }
@@ -190,30 +310,18 @@ Scope {
                         }
                     }
 
-                    // CENTER: Workspace dots
+                    // CENTER: Workspace dots (FIXED position, never moves!)
                     Row {
                         id: centerSection
                         anchors.centerIn: parent
                         spacing: 6
 
                         Repeater {
-                            // Always show 3 workspaces (persistent)
-                            model: 3
+                            model: [...Hyprland.workspaces.values].sort((a, b) => a.id - b.id)
 
                             Text {
-                                required property int index
-                                property int wsId: index + 1
-                                property bool isActive: {
-                                    // Check if this workspace is the focused one
-                                    let workspaces = Hyprland.workspaces.values;
-                                    for (let i = 0; i < workspaces.length; i++) {
-                                        let ws = workspaces[i];
-                                        if (ws.id === wsId && ws.focused) {
-                                            return true;
-                                        }
-                                    }
-                                    return false;
-                                }
+                                required property var modelData
+                                property bool isActive: modelData.focused
 
                                 text: isActive ? "●" : "○"
                                 color: isActive ? "#ffffff" : "#666666"
@@ -224,13 +332,163 @@ Scope {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
                                     hoverEnabled: true
-                                    onClicked: {
-                                        HyprlandIpc.dispatch("workspace " + wsId)
-                                    }
+                                    onClicked: HyprlandIpc.dispatch("workspace " + modelData.id)
                                     onEntered: parent.color = parent.isActive ? "#ffffff" : "#aaaaaa"
                                     onExited: parent.color = parent.isActive ? "#ffffff" : "#666666"
                                 }
                             }
+                        }
+                    }
+
+                    // LAUNCHER: Fixed start position, extends rightward
+                    Item {
+                        id: launcherSection
+                        visible: root.launcherVisible
+                        // Fixed left edge at midpoint between dots and right section
+                        x: (centerSection.x + centerSection.width + rightSection.x) / 2
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: launcherContent.implicitWidth
+                        height: 18
+
+                        Row {
+                            id: launcherContent
+                            spacing: 0
+                            anchors.verticalCenter: parent.verticalCenter
+
+                            TextInput {
+                                id: launcherInput
+                                width: contentWidth > 0 ? contentWidth + 1 : 2
+                                height: 18
+                                verticalAlignment: TextInput.AlignVCenter
+                                color: "#ffffff"
+                                font.pixelSize: 11
+                                font.family: "JetBrains Mono Nerd Font"
+                                cursorVisible: true
+                                clip: false
+                                text: root.launcherQuery
+
+                                cursorDelegate: Rectangle {
+                                    width: 1
+                                    color: "#3b82f6"
+                                    visible: launcherInput.cursorVisible
+                                }
+
+                                Connections {
+                                    target: root
+                                    function onLauncherVisibleChanged() {
+                                        if (root.launcherVisible) launcherInput.forceActiveFocus()
+                                    }
+                                }
+
+                                onTextChanged: {
+                                    if (root.launcherCompletionMode) {
+                                        let expectedName = root.launcherResult ? root.launcherResult.name : ""
+                                        if (text !== expectedName) {
+                                            root.launcherCompletionMode = false
+                                            root.launcherOriginalQuery = ""
+                                        }
+                                    }
+                                    root.launcherQuery = text
+                                    if (!root.launcherCompletionMode) root.updateLauncherResult()
+                                }
+
+                                Keys.onReturnPressed: root.executeLauncherResult()
+                                Keys.onEnterPressed: root.executeLauncherResult()
+                                Keys.onEscapePressed: {
+                                    root.launcherVisible = false
+                                    root.launcherQuery = ""
+                                    root.launcherResults = []
+                                    root.launcherSelectedIndex = 0
+                                    root.launcherCompletionMode = false
+                                    root.launcherOriginalQuery = ""
+                                }
+                                Keys.onTabPressed: (event) => {
+                                    if (!root.launcherResult) { event.accepted = true; return }
+                                    if (!root.launcherCompletionMode) {
+                                        root.launcherOriginalQuery = root.launcherQuery
+                                        root.launcherCompletionMode = true
+                                        root.launcherQuery = root.launcherResult.name
+                                        launcherInput.text = root.launcherResult.name
+                                    } else {
+                                        root.launcherSelectedIndex = (root.launcherSelectedIndex + 1) % root.launcherResults.length
+                                        root.launcherQuery = root.launcherResult.name
+                                        launcherInput.text = root.launcherResult.name
+                                    }
+                                    event.accepted = true
+                                }
+                                Keys.onBacktabPressed: (event) => {
+                                    if (!root.launcherResult) { event.accepted = true; return }
+                                    if (!root.launcherCompletionMode) {
+                                        root.launcherOriginalQuery = root.launcherQuery
+                                        root.launcherCompletionMode = true
+                                        root.launcherSelectedIndex = root.launcherResults.length - 1
+                                    } else {
+                                        root.launcherSelectedIndex = (root.launcherSelectedIndex - 1 + root.launcherResults.length) % root.launcherResults.length
+                                    }
+                                    root.launcherQuery = root.launcherResult.name
+                                    launcherInput.text = root.launcherResult.name
+                                    event.accepted = true
+                                }
+                                Keys.onDownPressed: {
+                                    if (root.launcherResults.length > 1) {
+                                        if (!root.launcherCompletionMode) {
+                                            root.launcherOriginalQuery = root.launcherQuery
+                                            root.launcherCompletionMode = true
+                                        }
+                                        root.launcherSelectedIndex = (root.launcherSelectedIndex + 1) % root.launcherResults.length
+                                        root.launcherQuery = root.launcherResult.name
+                                        launcherInput.text = root.launcherResult.name
+                                    }
+                                }
+                                Keys.onUpPressed: {
+                                    if (root.launcherResults.length > 1) {
+                                        if (!root.launcherCompletionMode) {
+                                            root.launcherOriginalQuery = root.launcherQuery
+                                            root.launcherCompletionMode = true
+                                            root.launcherSelectedIndex = root.launcherResults.length - 1
+                                        } else {
+                                            root.launcherSelectedIndex = (root.launcherSelectedIndex - 1 + root.launcherResults.length) % root.launcherResults.length
+                                        }
+                                        root.launcherQuery = root.launcherResult.name
+                                        launcherInput.text = root.launcherResult.name
+                                    }
+                                }
+                            }
+
+                            // Ghost-text (bluish)
+                            Text {
+                                visible: root.launcherGhostText.length > 0
+                                text: root.launcherGhostText
+                                color: root.launcherResult && root.launcherResult.type === "calc" ? "#22c55e" : "#4a5568"
+                                font.pixelSize: 11
+                                font.family: "JetBrains Mono Nerd Font"
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        // Subtle underline
+                        Rectangle {
+                            anchors.bottom: parent.bottom
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            height: 1
+                            color: "#4a5568"
+                            opacity: 0.6
+                        }
+                    }
+
+                    // Launcher focus grab - captures keyboard when launcher is visible
+                    HyprlandFocusGrab {
+                        id: launcherFocusGrab
+                        active: root.launcherVisible
+                        windows: [ panel ]
+                        onCleared: {
+                            root.launcherVisible = false
+                            root.launcherQuery = ""
+                            root.launcherResults = []
+                            root.launcherSelectedIndex = 0
+                            root.launcherCompletionMode = false
+                            root.launcherOriginalQuery = ""
                         }
                     }
 
@@ -1725,21 +1983,14 @@ Scope {
 
     // === PROCESSES FOR DATA COLLECTION ===
 
-    // Clock process
-    Process {
-        id: clockProc
-        command: ["date", "+%H:%M"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: root.currentTime = this.text.trim() + " Uhr"
-        }
-    }
-
+    // Clock timer (uses formatTime helper for consistent formatting)
     Timer {
+        id: clockTimer
         interval: 1000
         running: true
         repeat: true
-        onTriggered: clockProc.running = true
+        onTriggered: root.currentTime = root.formatTime()
+        Component.onCompleted: root.currentTime = root.formatTime()
     }
 
     // Audio volume process (using wpctl for Pipewire/PulseAudio)
@@ -2024,5 +2275,53 @@ Scope {
         running: true
         repeat: true
         onTriggered: getPowerProfileProc.running = true
+    }
+
+    // Launcher IPC handler for Hyprland global shortcut
+    // Usage in hyprland.conf: bind = SUPER, D, global, quickshell:launcher:toggle
+    IpcHandler {
+        target: "launcher"
+
+        function toggle() {
+            root.launcherVisible = !root.launcherVisible
+            if (!root.launcherVisible) {
+                root.launcherQuery = ""
+                root.launcherResults = []
+                root.launcherSelectedIndex = 0
+                root.launcherCompletionMode = false
+                root.launcherOriginalQuery = ""
+            }
+        }
+
+        function show() {
+            root.launcherVisible = true
+        }
+
+        function hide() {
+            root.launcherVisible = false
+            root.launcherQuery = ""
+            root.launcherResults = []
+            root.launcherSelectedIndex = 0
+            root.launcherCompletionMode = false
+            root.launcherOriginalQuery = ""
+        }
+    }
+
+    // Global shortcut for Hyprland
+    // Usage in hyprland.conf: bind = SUPER, D, global, quickshell:launcher
+    GlobalShortcut {
+        name: "launcher"
+        description: "Toggle application launcher"
+
+        onPressed: {
+            root.launcherVisible = !root.launcherVisible
+            if (!root.launcherVisible) {
+                root.launcherQuery = ""
+                root.launcherResults = []
+                root.launcherSelectedIndex = 0
+                root.launcherCompletionMode = false
+                root.launcherOriginalQuery = ""
+            }
+        }
     }
 }

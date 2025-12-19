@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Rules
+
+1. **Always use Context7 MCP** for documentation lookup before implementing Quickshell features
+2. **After every code change**, provide a short functional summary of what was changed (e.g., "Time display made modular", "Workspace dots now dynamic")
+3. **Language**: Communicate in German, but keep all code and comments in English
+
 ## Documentation Lookup
 
 **Always use Context7 MCP for up-to-date documentation:**
