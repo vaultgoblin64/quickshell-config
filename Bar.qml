@@ -57,6 +57,9 @@ Scope {
         id: notificationServer
 
         onNotification: function(notification) {
+            // Skip notifications carried over from previous reload
+            if (notification.lastGeneration) return
+
             // Copy data (don't store object reference)
             let notifData = {
                 notifId: notification.id,
@@ -311,8 +314,9 @@ Scope {
                             }
                         }
 
-                        // Notification bell icon
+                        // Notification bell icon (only visible when there are notifications)
                         Item {
+                            visible: root.unreadCount > 0 || activeNotificationsModel.count > 0
                             width: notifIcon.implicitWidth + (root.unreadCount > 0 ? notifBadgeRect.width + 2 : 0)
                             height: 20
                             anchors.verticalCenter: parent.verticalCenter
@@ -1119,40 +1123,84 @@ Scope {
                             }
                         }
 
-                        // === POWER BUTTON ===
-                        Rectangle {
+                        // === LOCK & POWER ROW ===
+                        Row {
                             width: parent.width
-                            height: 40
-                            color: Qt.rgba(239, 68, 68, 0.15)  // Subtle red background
-                            radius: 8
+                            spacing: 8
 
-                            Row {
-                                anchors.centerIn: parent
-                                spacing: 8
+                            // Lock button
+                            Rectangle {
+                                width: (parent.width - 8) / 2
+                                height: 40
+                                color: Qt.rgba(168, 85, 247, 0.15)  // Subtle purple
+                                radius: 8
 
-                                Text {
-                                    text: "󰐥"
-                                    color: "#ef4444"
-                                    font.family: "JetBrains Mono Nerd Font"
-                                    font.pixelSize: 16
-                                    anchors.verticalCenter: parent.verticalCenter
+                                Row {
+                                    anchors.centerIn: parent
+                                    spacing: 8
+
+                                    Text {
+                                        text: "󰌾"
+                                        color: "#a855f7"
+                                        font.family: "JetBrains Mono Nerd Font"
+                                        font.pixelSize: 16
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+
+                                    Text {
+                                        text: "Lock"
+                                        color: "#a855f7"
+                                        font.pixelSize: 13
+                                        font.weight: Font.Medium
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
                                 }
 
-                                Text {
-                                    text: "Shutdown"
-                                    color: "#ef4444"
-                                    font.pixelSize: 13
-                                    font.weight: Font.Medium
-                                    anchors.verticalCenter: parent.verticalCenter
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        root.controlCenterVisible = false
+                                        lockProc.running = true
+                                    }
                                 }
                             }
 
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.controlCenterVisible = false
-                                    shutdownProc.running = true
+                            // Power button
+                            Rectangle {
+                                width: (parent.width - 8) / 2
+                                height: 40
+                                color: Qt.rgba(239, 68, 68, 0.15)  // Subtle red
+                                radius: 8
+
+                                Row {
+                                    anchors.centerIn: parent
+                                    spacing: 8
+
+                                    Text {
+                                        text: "󰐥"
+                                        color: "#ef4444"
+                                        font.family: "JetBrains Mono Nerd Font"
+                                        font.pixelSize: 16
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+
+                                    Text {
+                                        text: "Power"
+                                        color: "#ef4444"
+                                        font.pixelSize: 13
+                                        font.weight: Font.Medium
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        root.controlCenterVisible = false
+                                        shutdownProc.running = true
+                                    }
                                 }
                             }
                         }
@@ -1561,7 +1609,7 @@ Scope {
                         width: notifColumn.width
                         height: 76
                         radius: 10
-                        color: Qt.rgba(20/255, 20/255, 25/255, 0.95)
+                        color: Qt.rgba(20/255, 20/255, 25/255, 1.0)
                         border.color: notifRect.urgency === 2 ? "#ef4444" : Qt.rgba(255, 255, 255, 0.1)
                         border.width: 1
 
@@ -1683,7 +1731,7 @@ Scope {
         command: ["date", "+%H:%M"]
         running: true
         stdout: StdioCollector {
-            onStreamFinished: root.currentTime = this.text.trim()
+            onStreamFinished: root.currentTime = this.text.trim() + " Uhr"
         }
     }
 
@@ -1962,6 +2010,12 @@ Scope {
     Process {
         id: shutdownProc
         command: ["systemctl", "poweroff"]
+        running: false
+    }
+
+    Process {
+        id: lockProc
+        command: ["hyprlock"]
         running: false
     }
 

@@ -37,6 +37,7 @@ quickshell
 ## Roadmap / TODO
 
 - [ ] **Modularity Settings** - In-app configuration for bar components and themes
+- [ ] **Clock Format** - Customizable time format and suffix (e.g., "Uhr", "AM/PM")
 - [ ] **Network Manager Picker** - GUI for selecting WiFi networks
 - [ ] **Bluetooth Picker** - GUI for pairing/connecting Bluetooth devices
 - [ ] **Terminal Picker** - Configurable terminal selection dialog
