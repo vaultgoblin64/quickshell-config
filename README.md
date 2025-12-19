@@ -5,7 +5,7 @@ A custom Quickshell configuration for Hyprland with a modern top bar, control ce
 ## Features
 
 - **Top Bar** - Clock, workspaces, system tray, volume/network/bluetooth indicators
-- **Control Center** - Quick toggles and sliders for brightness/volume
+- **Control Center** - Quick toggles and sliders for volume, network, bluetooth
 - **Notification Daemon** - Popup notifications with history center
 - **Hyprland Integration** - Workspace switching, window focus, IPC communication
 
@@ -15,7 +15,6 @@ A custom Quickshell configuration for Hyprland with a modern top bar, control ce
 - Hyprland
 - JetBrains Mono Nerd Font
 - `wpctl` (WirePlumber) for audio control
-- `brightnessctl` for backlight control
 - `libnotify` for notification testing (`notify-send`)
 
 ## Configuration

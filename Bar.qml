@@ -77,7 +77,7 @@ Scope {
                 root.unreadCount++
             }
 
-            // Aktive Popups aktualisieren (max 5)
+            // Update active popups (max 5)
             if (activeNotificationsModel.count < 5) {
                 activeNotificationsModel.append(notifData)
             }
@@ -238,7 +238,7 @@ Scope {
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 12
 
-                        // System warnings (alle kritischen Werte anzeigen)
+                        // System warnings (show all critical values)
                         Rectangle {
                             visible: root.cpuUsage > 70
                             color: "#ef4444"
@@ -1508,7 +1508,7 @@ Scope {
         }
     }
 
-    // === NOTIFICATION POPUPS (separates Overlay-Fenster) ===
+    // === NOTIFICATION POPUPS (separate overlay window) ===
     Variants {
         model: Quickshell.screens
 
