@@ -1672,7 +1672,11 @@ Scope {
                                 MouseArea {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: notificationHistory.clear()
+                                    onClicked: {
+                                        notificationHistory.clear()
+                                        root.unreadCount = 0
+                                        root.notificationCenterVisible = false
+                                    }
                                 }
                             }
                         }
