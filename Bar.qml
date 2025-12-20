@@ -687,10 +687,19 @@ Scope {
                                 if (root.batteryPercent >= 10) return "󰁻"
                                 return "󰁺"
                             }
-                            color: "#ffffff"
+                            color: root.batteryCharging ? "#22c55e" :
+                                   root.batteryPercent < 20 ? "#ef4444" : "#ffffff"
                             font.family: "JetBrains Mono Nerd Font"
                             font.pixelSize: 14
                             anchors.verticalCenter: parent.verticalCenter
+
+                            // Blink animation for critical battery
+                            SequentialAnimation on opacity {
+                                running: root.batteryPercent <= 5 && !root.batteryCharging
+                                loops: Animation.Infinite
+                                NumberAnimation { to: 0.3; duration: 500 }
+                                NumberAnimation { to: 1.0; duration: 500 }
+                            }
 
                             MouseArea {
                                 anchors.fill: parent
