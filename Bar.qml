@@ -317,7 +317,8 @@ Scope {
                         spacing: 6
 
                         Repeater {
-                            model: [...Hyprland.workspaces.values].sort((a, b) => a.id - b.id)
+                            // Filter out special workspaces (negative IDs)
+                            model: [...Hyprland.workspaces.values].filter(ws => ws.id > 0).sort((a, b) => a.id - b.id)
 
                             Text {
                                 required property var modelData
