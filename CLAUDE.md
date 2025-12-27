@@ -7,6 +7,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 1. **Always use Context7 MCP** for documentation lookup before implementing Quickshell features
 2. **After every code change**, provide a short functional summary of what was changed (e.g., "Time display made modular", "Workspace dots now dynamic")
 3. **Language**: Communicate in German, but keep all code and comments in English
+4. **MANDATORY TESTING**: After every UI/code change, you MUST:
+   - Reload Quickshell (`killall quickshell; qs &`)
+   - Visually verify the change works as expected
+   - Test interactive elements (sliders, toggles, buttons)
+   - Verify layout alignment and positioning
+   - Test edge cases (min/max values, empty states)
+   - Example tests: "Slider moved → value changed", "Toggle clicked → state toggled", "Button at correct position"
 
 ## Documentation Lookup
 

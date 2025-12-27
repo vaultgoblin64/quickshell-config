@@ -36,6 +36,16 @@ Scope {
 
     // Settings state
     property bool settingsVisible: false
+    property int settingsTab: 0  // 0=Apps, 1=Time, 2=Thresholds, 3=Limits
+    property bool timeSuffixEnabled: true
+    property int maxLauncherResults: 5
+    property int maxActiveNotifications: 5
+
+    // Warning thresholds
+    property int cpuWarningThreshold: 80
+    property int tempWarningThreshold: 70
+    property int ramWarningThreshold: 80
+    property int batteryCriticalThreshold: 15
 
     // Launcher state
     property bool launcherVisible: false
@@ -712,770 +722,260 @@ Scope {
                 }
             }
 
-            // === CONTROL CENTER POPUP ===
+            // === CONTROL CENTER POPUP (Compact Design) ===
             PopupWindow {
                 id: controlCenterPopup
 
-                // Anchor to the panel window - 2px from right edge
                 anchor.window: panel
                 anchor.rect.x: panel.width - implicitWidth - 2
                 anchor.rect.y: panel.height + 4
 
-                implicitWidth: 320
-                implicitHeight: popupContent.implicitHeight + 24
+                implicitWidth: 260
+                implicitHeight: popupContent.implicitHeight
 
                 visible: root.controlCenterVisible
                 color: "transparent"
 
-                // Animation state
                 property real animatedOpacity: root.controlCenterVisible ? 1.0 : 0.0
                 property real slideOffset: root.controlCenterVisible ? 0 : -10
 
-                Behavior on animatedOpacity {
-                    NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
-                }
+                Behavior on animatedOpacity { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
+                Behavior on slideOffset { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
 
-                Behavior on slideOffset {
-                    NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
-                }
-
-                // Close when clicking outside (Hyprland focus grab)
                 HyprlandFocusGrab {
-                    id: focusGrab
                     active: root.controlCenterVisible
                     windows: [ controlCenterPopup ]
                     onCleared: root.controlCenterVisible = false
                 }
 
-                // Main popup container - matches top bar styling
+                // ESC to close
+                Item {
+                    focus: root.controlCenterVisible
+                    Keys.onEscapePressed: root.controlCenterVisible = false
+                }
+
                 Rectangle {
                     id: popupContent
                     anchors.fill: parent
-                    color: Qt.rgba(20/255, 20/255, 25/255, 1.0)  // Solid, no transparency
-                    radius: 10  // Same as bar
+                    color: Qt.rgba(20/255, 20/255, 25/255, 1.0)
+                    radius: 10
                     border.color: Qt.rgba(255, 255, 255, 0.08)
                     border.width: 1
                     opacity: controlCenterPopup.animatedOpacity
                     transform: Translate { y: controlCenterPopup.slideOffset }
 
-                    implicitHeight: contentColumn.implicitHeight + 24
+                    implicitHeight: compactColumn.implicitHeight + 20
 
-                    // Content Column
                     Column {
-                        id: contentColumn
+                        id: compactColumn
                         anchors.fill: parent
-                        anchors.margins: 16
-                        spacing: 12
+                        anchors.margins: 10
+                        spacing: 8
 
-                        // === VOLUME SECTION ===
-                        Rectangle {
+                        // Row 1: Quick Toggle Grid (2x2)
+                        Grid {
                             width: parent.width
-                            height: volumeColumn.implicitHeight + 16
-                            color: Qt.rgba(255, 255, 255, 0.05)
-                            radius: 8
+                            columns: 4
+                            spacing: 6
 
-                            Column {
-                                id: volumeColumn
-                                anchors.fill: parent
-                                anchors.margins: 12
-                                spacing: 10
-
-                                // Header row
-                                Row {
-                                    width: parent.width
-                                    spacing: 10
-
-                                    Text {
-                                        text: root.audioMuted ? "󰝟" : "󰕾"
-                                        color: "#3b82f6"
-                                        font.family: "JetBrains Mono Nerd Font"
-                                        font.pixelSize: 18
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-
-                                    Text {
-                                        text: "Volume"
-                                        color: "#ffffff"
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-
-                                    Item { width: 1; height: 1; Layout.fillWidth: true }
-
-                                    Text {
-                                        text: root.audioVolume + "%"
-                                        color: "#888888"
-                                        font.pixelSize: 12
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-                                }
-
-                                // Slider row
-                                Row {
-                                    width: parent.width
-                                    spacing: 10
-
-                                    // Mute button
-                                    Rectangle {
-                                        width: 32
-                                        height: 32
-                                        radius: 6
-                                        color: root.audioMuted ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.1)
-
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: root.audioMuted ? "󰝟" : "󰕿"
-                                            color: "#ffffff"
-                                            font.family: "JetBrains Mono Nerd Font"
-                                            font.pixelSize: 14
-                                        }
-
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: toggleMuteProc.running = true
-                                        }
-                                    }
-
-                                    // Volume slider
-                                    Item {
-                                        width: parent.width - 42
-                                        height: 32
-
-                                        Rectangle {
-                                            id: volumeSliderTrack
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            width: parent.width
-                                            height: 6
-                                            radius: 3
-                                            color: Qt.rgba(255, 255, 255, 0.2)
-
-                                            Rectangle {
-                                                width: parent.width * (root.audioVolume / 100)
-                                                height: parent.height
-                                                radius: 3
-                                                color: "#3b82f6"
-                                            }
-
-                                            Rectangle {
-                                                id: volumeHandle
-                                                x: parent.width * (root.audioVolume / 100) - width / 2
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                width: 16
-                                                height: 16
-                                                radius: 8
-                                                color: "#ffffff"
-
-                                                Behavior on x {
-                                                    NumberAnimation { duration: 50 }
-                                                }
-                                            }
-                                        }
-
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-
-                                            onClicked: function(mouse) {
-                                                let newVol = Math.round((mouse.x / width) * 100)
-                                                newVol = Math.max(0, Math.min(100, newVol))
-                                                setVolumeProc.command = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", (newVol / 100).toFixed(2)]
-                                                setVolumeProc.running = true
-                                            }
-
-                                            onPositionChanged: function(mouse) {
-                                                if (pressed) {
-                                                    let newVol = Math.round((mouse.x / width) * 100)
-                                                    newVol = Math.max(0, Math.min(100, newVol))
-                                                    root.audioVolume = newVol  // Immediate visual feedback
-                                                    setVolumeProc.command = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", (newVol / 100).toFixed(2)]
-                                                    setVolumeProc.running = true
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // === NETWORK SECTION ===
-                        Rectangle {
-                            width: parent.width
-                            height: networkColumn.implicitHeight + 16
-                            color: Qt.rgba(255, 255, 255, 0.05)
-                            radius: 8
-
-                            Column {
-                                id: networkColumn
-                                anchors.fill: parent
-                                anchors.margins: 12
-                                spacing: 8
-
-                                Row {
-                                    width: parent.width
-                                    spacing: 10
-
-                                    Text {
-                                        text: root.networkIcon
-                                        color: root.networkStatus !== "disconnected" ? "#22c55e" : "#888888"
-                                        font.family: "JetBrains Mono Nerd Font"
-                                        font.pixelSize: 18
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-
-                                    Column {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        Text {
-                                            text: "Network"
-                                            color: "#ffffff"
-                                            font.pixelSize: 14
-                                            font.weight: Font.Medium
-                                        }
-                                        Text {
-                                            text: root.networkStatus === "wifi" ? "Wi-Fi Connected" :
-                                                  root.networkStatus === "ethernet" ? "Ethernet Connected" : "Disconnected"
-                                            color: "#888888"
-                                            font.pixelSize: 11
-                                        }
-                                    }
-
-                                    Item { width: 1; height: 1; Layout.fillWidth: true }
-
-                                    // WiFi toggle
-                                    Rectangle {
-                                        width: 44
-                                        height: 24
-                                        radius: 12
-                                        color: root.networkStatus !== "disconnected" ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.2)
-                                        anchors.verticalCenter: parent.verticalCenter
-
-                                        Rectangle {
-                                            x: root.networkStatus !== "disconnected" ? parent.width - width - 2 : 2
-                                            y: 2
-                                            width: 20
-                                            height: 20
-                                            radius: 10
-                                            color: "#ffffff"
-
-                                            Behavior on x {
-                                                NumberAnimation { duration: 100 }
-                                            }
-                                        }
-
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: toggleWifiProc.running = true
-                                        }
-                                    }
-                                }
-
-                                // Network settings link
+                            // WiFi Toggle
+                            Rectangle {
+                                width: (parent.width - 18) / 4; height: 36; radius: 6
+                                color: root.networkConnected ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.08)
                                 Text {
-                                    text: "Network Settings..."
-                                    color: "#3b82f6"
-                                    font.pixelSize: 12
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            root.controlCenterVisible = false
-                                            Quickshell.execDetached([root.terminalApp, root.networkManager])
-                                        }
-                                    }
+                                    anchors.centerIn: parent
+                                    text: root.networkConnected ? "󰤨" : "󰤭"
+                                    color: root.networkConnected ? "#ffffff" : "#888888"
+                                    font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 16
+                                }
+                                MouseArea {
+                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                    onClicked: Quickshell.exec(["sh", "-c", "nmcli networking " + (root.networkConnected ? "off" : "on")])
                                 }
                             }
-                        }
 
-                        // === BLUETOOTH SECTION ===
-                        Rectangle {
-                            width: parent.width
-                            height: bluetoothColumn.implicitHeight + 16
-                            color: Qt.rgba(255, 255, 255, 0.05)
-                            radius: 8
-
-                            Column {
-                                id: bluetoothColumn
-                                anchors.fill: parent
-                                anchors.margins: 12
-                                spacing: 8
-
-                                Row {
-                                    width: parent.width
-                                    spacing: 10
-
-                                    Text {
-                                        text: root.bluetoothEnabled ? (root.bluetoothConnected ? "󰂱" : "󰂯") : "󰂲"
-                                        color: root.bluetoothEnabled ? "#3b82f6" : "#888888"
-                                        font.family: "JetBrains Mono Nerd Font"
-                                        font.pixelSize: 18
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-
-                                    Column {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        Text {
-                                            text: "Bluetooth"
-                                            color: "#ffffff"
-                                            font.pixelSize: 14
-                                            font.weight: Font.Medium
-                                        }
-                                        Text {
-                                            text: root.bluetoothEnabled ?
-                                                  (root.bluetoothConnected ? "Connected" : "On") : "Off"
-                                            color: "#888888"
-                                            font.pixelSize: 11
-                                        }
-                                    }
-
-                                    Item { width: 1; height: 1; Layout.fillWidth: true }
-
-                                    // Bluetooth toggle
-                                    Rectangle {
-                                        width: 44
-                                        height: 24
-                                        radius: 12
-                                        color: root.bluetoothEnabled ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.2)
-                                        anchors.verticalCenter: parent.verticalCenter
-
-                                        Rectangle {
-                                            x: root.bluetoothEnabled ? parent.width - width - 2 : 2
-                                            y: 2
-                                            width: 20
-                                            height: 20
-                                            radius: 10
-                                            color: "#ffffff"
-
-                                            Behavior on x {
-                                                NumberAnimation { duration: 100 }
-                                            }
-                                        }
-
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: toggleBluetoothProc.running = true
-                                        }
-                                    }
-                                }
-
-                                // Bluetooth settings link
+                            // Bluetooth Toggle
+                            Rectangle {
+                                width: (parent.width - 18) / 4; height: 36; radius: 6
+                                color: root.bluetoothConnected ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.08)
                                 Text {
-                                    text: "Bluetooth Settings..."
-                                    color: "#3b82f6"
-                                    font.pixelSize: 12
+                                    anchors.centerIn: parent
+                                    text: root.bluetoothConnected ? "󰂯" : "󰂲"
+                                    color: root.bluetoothConnected ? "#ffffff" : "#888888"
+                                    font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 16
+                                }
+                                MouseArea {
+                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                    onClicked: Quickshell.exec(["sh", "-c", "bluetoothctl power " + (root.bluetoothConnected ? "off" : "on")])
+                                }
+                            }
 
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            root.controlCenterVisible = false
-                                            Quickshell.execDetached([root.terminalApp, root.bluetoothManager])
-                                        }
-                                    }
+                            // Mute Toggle
+                            Rectangle {
+                                width: (parent.width - 18) / 4; height: 36; radius: 6
+                                color: root.audioMuted ? "#ef4444" : Qt.rgba(255, 255, 255, 0.08)
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: root.audioMuted ? "󰝟" : "󰕾"
+                                    color: root.audioMuted ? "#ffffff" : "#888888"
+                                    font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 16
+                                }
+                                MouseArea {
+                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                    onClicked: muteProc.running = true
+                                }
+                            }
+
+                            // Settings
+                            Rectangle {
+                                width: (parent.width - 18) / 4; height: 36; radius: 6
+                                color: Qt.rgba(255, 255, 255, 0.08)
+                                Text {
+                                    anchors.centerIn: parent; text: "󰒓"
+                                    color: "#888888"; font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 16
+                                }
+                                MouseArea {
+                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                    onClicked: { root.controlCenterVisible = false; root.settingsVisible = true }
                                 }
                             }
                         }
 
-                        // === SYSTEM INFO SECTION ===
-                        Rectangle {
-                            width: parent.width
-                            height: sysInfoColumn.implicitHeight + 16
-                            color: Qt.rgba(255, 255, 255, 0.05)
-                            radius: 8
-
-                            Column {
-                                id: sysInfoColumn
-                                anchors.fill: parent
-                                anchors.margins: 12
-                                spacing: 10
-
-                                // Header
-                                Row {
-                                    spacing: 10
-
-                                    Text {
-                                        text: "󰍛"
-                                        color: "#a855f7"
-                                        font.family: "JetBrains Mono Nerd Font"
-                                        font.pixelSize: 18
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-
-                                    Text {
-                                        text: "System"
-                                        color: "#ffffff"
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-                                }
-
-                                // Stats grid
-                                Row {
-                                    width: parent.width
-                                    spacing: 10
-
-                                    // CPU Usage
-                                    Rectangle {
-                                        width: (parent.width - 20) / 3
-                                        height: 58
-                                        radius: 6
-                                        color: Qt.rgba(255, 255, 255, 0.05)
-
-                                        Column {
-                                            anchors.centerIn: parent
-                                            spacing: 5
-
-                                            Text {
-                                                text: "󰻠"
-                                                color: "#3b82f6"
-                                                font.family: "JetBrains Mono Nerd Font"
-                                                font.pixelSize: 16
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                            }
-
-                                            Text {
-                                                text: root.cpuUsage + "%"
-                                                color: root.cpuUsage > 80 ? "#ef4444" : "#ffffff"
-                                                font.pixelSize: 12
-                                                font.weight: Font.Medium
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                            }
-
-                                            Text {
-                                                text: "CPU"
-                                                color: "#888888"
-                                                font.pixelSize: 9
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                            }
-                                        }
-                                    }
-
-                                    // CPU Temp
-                                    Rectangle {
-                                        width: (parent.width - 20) / 3
-                                        height: 58
-                                        radius: 6
-                                        color: Qt.rgba(255, 255, 255, 0.05)
-
-                                        Column {
-                                            anchors.centerIn: parent
-                                            spacing: 5
-
-                                            Text {
-                                                text: "󰔏"
-                                                color: root.cpuTemp > 70 ? "#ef4444" : (root.cpuTemp > 50 ? "#f59e0b" : "#22c55e")
-                                                font.family: "JetBrains Mono Nerd Font"
-                                                font.pixelSize: 16
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                            }
-
-                                            Text {
-                                                text: root.cpuTemp + "°C"
-                                                color: root.cpuTemp > 70 ? "#ef4444" : "#ffffff"
-                                                font.pixelSize: 12
-                                                font.weight: Font.Medium
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                            }
-
-                                            Text {
-                                                text: "Temp"
-                                                color: "#888888"
-                                                font.pixelSize: 9
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                            }
-                                        }
-                                    }
-
-                                    // RAM Usage
-                                    Rectangle {
-                                        width: (parent.width - 20) / 3
-                                        height: 58
-                                        radius: 6
-                                        color: Qt.rgba(255, 255, 255, 0.05)
-
-                                        Column {
-                                            anchors.centerIn: parent
-                                            spacing: 5
-
-                                            Text {
-                                                text: "󰘚"
-                                                color: "#22c55e"
-                                                font.family: "JetBrains Mono Nerd Font"
-                                                font.pixelSize: 16
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                            }
-
-                                            Text {
-                                                text: root.ramUsage + "%"
-                                                color: root.ramUsage > 80 ? "#ef4444" : "#ffffff"
-                                                font.pixelSize: 12
-                                                font.weight: Font.Medium
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                            }
-
-                                            Text {
-                                                text: "RAM"
-                                                color: "#888888"
-                                                font.pixelSize: 9
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                            }
-                                        }
-                                    }
-                                }
+                        // Row 2: Volume Slider (compact)
+                        Row {
+                            width: parent.width; height: 28; spacing: 8
+                            Text {
+                                text: root.audioMuted ? "󰝟" : "󰕾"
+                                color: "#3b82f6"; font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 14
+                                anchors.verticalCenter: parent.verticalCenter
                             }
-                        }
-
-                        // === BATTERY SECTION ===
-                        Rectangle {
-                            width: parent.width
-                            height: batteryColumn.implicitHeight + 16
-                            color: Qt.rgba(255, 255, 255, 0.05)
-                            radius: 8
-
-                            Column {
-                                id: batteryColumn
-                                anchors.fill: parent
-                                anchors.margins: 12
-                                spacing: 10
-
-                                Row {
-                                    width: parent.width
-                                    spacing: 10
-
-                                    Text {
-                                        text: {
-                                            if (root.batteryCharging) return "󰂄"
-                                            if (root.batteryPercent >= 90) return "󰁹"
-                                            if (root.batteryPercent >= 80) return "󰂂"
-                                            if (root.batteryPercent >= 70) return "󰂁"
-                                            if (root.batteryPercent >= 60) return "󰂀"
-                                            if (root.batteryPercent >= 50) return "󰁿"
-                                            if (root.batteryPercent >= 40) return "󰁾"
-                                            if (root.batteryPercent >= 30) return "󰁽"
-                                            if (root.batteryPercent >= 20) return "󰁼"
-                                            if (root.batteryPercent >= 10) return "󰁻"
-                                            return "󰁺"
-                                        }
-                                        color: root.batteryCharging ? "#22c55e" :
-                                               (root.batteryPercent < 20 ? "#ef4444" : "#ffffff")
-                                        font.family: "JetBrains Mono Nerd Font"
-                                        font.pixelSize: 18
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-
-                                    Column {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        Text {
-                                            text: "Battery"
-                                            color: "#ffffff"
-                                            font.pixelSize: 14
-                                            font.weight: Font.Medium
-                                        }
-                                        Text {
-                                            text: root.batteryPercent + "%" +
-                                                  (root.batteryCharging ? " • Charging" : "") +
-                                                  (root.batteryTimeRemaining ? " • " + root.batteryTimeRemaining : "")
-                                            color: "#888888"
-                                            font.pixelSize: 11
-                                        }
-                                    }
-                                }
-
-                                // Battery bar
+                            Item {
+                                width: parent.width - 70; height: 20
+                                anchors.verticalCenter: parent.verticalCenter
                                 Rectangle {
-                                    width: parent.width
-                                    height: 8
-                                    radius: 4
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width; height: 4; radius: 2
                                     color: Qt.rgba(255, 255, 255, 0.2)
-
                                     Rectangle {
-                                        width: parent.width * (root.batteryPercent / 100)
-                                        height: parent.height
-                                        radius: 4
-                                        color: root.batteryPercent < 20 ? "#ef4444" :
-                                               root.batteryPercent < 50 ? "#f59e0b" : "#22c55e"
-
-                                        Behavior on width {
-                                            NumberAnimation { duration: 300 }
-                                        }
+                                        width: parent.width * (root.audioVolume / 100); height: parent.height
+                                        radius: 2; color: "#3b82f6"
+                                    }
+                                    Rectangle {
+                                        x: parent.width * (root.audioVolume / 100) - 6
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 12; height: 12; radius: 6; color: "#ffffff"
                                     }
                                 }
+                                MouseArea {
+                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                    onClicked: (mouse) => { var v = Math.round((mouse.x / width) * 100); setVolumeProc.command = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", v + "%"]; setVolumeProc.running = true }
+                                    onPositionChanged: (mouse) => { if (pressed) { var v = Math.round((mouse.x / width) * 100); setVolumeProc.command = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", v + "%"]; setVolumeProc.running = true } }
+                                }
+                            }
+                            Text {
+                                text: root.audioVolume + "%"
+                                color: "#888888"; font.pixelSize: 11
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
 
-                                // Power profile selector with icons
-                                Row {
-                                    width: parent.width
-                                    spacing: 6
-
-                                    Repeater {
-                                        model: [
-                                            { name: "Power Saver", icon: "󰌪", cmd: "power-saver" },
-                                            { name: "Balanced", icon: "󰗑", cmd: "balanced" },
-                                            { name: "Performance", icon: "󱐋", cmd: "performance" }
-                                        ]
-
-                                        Rectangle {
-                                            required property var modelData
-                                            required property int index
-                                            width: (parent.width - 12) / 3
-                                            height: 28
-                                            radius: 6
-                                            color: root.powerProfile === modelData.name ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.1)
-
-                                            Row {
-                                                anchors.centerIn: parent
-                                                spacing: 4
-
-                                                Text {
-                                                    text: modelData.icon
-                                                    color: "#ffffff"
-                                                    font.family: "JetBrains Mono Nerd Font"
-                                                    font.pixelSize: 12
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                }
-                                            }
-
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    root.powerProfile = modelData.name
-                                                    setPowerProfileProc.command = ["powerprofilesctl", "set", modelData.cmd]
-                                                    setPowerProfileProc.running = true
-                                                }
-                                            }
+                        // Row 3: Battery + Power Profile
+                        Item {
+                            width: parent.width; height: 28
+                            Row {
+                                anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                                spacing: 6; height: parent.height
+                                Text {
+                                    text: root.batteryCharging ? "󰂄" : (root.batteryPercent >= 80 ? "󰁹" : root.batteryPercent >= 40 ? "󰁾" : "󰁺")
+                                    color: root.batteryCharging ? "#22c55e" : (root.batteryPercent < 20 ? "#ef4444" : "#ffffff")
+                                    font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 14
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: root.batteryPercent + "%" + (root.batteryTimeRemaining ? " • " + root.batteryTimeRemaining : "")
+                                    color: "#888888"; font.pixelSize: 11
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                            Row {
+                                anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                                spacing: 4
+                                Repeater {
+                                    model: [
+                                        { icon: "󰾆", profile: "power-saver" },
+                                        { icon: "󰾅", profile: "balanced" },
+                                        { icon: "󰓅", profile: "performance" }
+                                    ]
+                                    Rectangle {
+                                        required property var modelData
+                                        width: 28; height: 24; radius: 4
+                                        color: root.powerProfile === modelData.profile ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.08)
+                                        Text {
+                                            anchors.centerIn: parent; text: modelData.icon
+                                            color: root.powerProfile === modelData.profile ? "#ffffff" : "#666666"
+                                            font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 12
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            onClicked: { setPowerProfileProc.command = ["powerprofilesctl", "set", modelData.profile]; setPowerProfileProc.running = true }
                                         }
                                     }
                                 }
                             }
                         }
 
-                        // === SETTINGS BUTTON ===
-                        Rectangle {
-                            width: parent.width
-                            height: 40
-                            color: Qt.rgba(255, 255, 255, 0.05)
-                            radius: 8
+                        // Row 4: System Stats (inline)
+                        Row {
+                            width: parent.width; height: 20
+                            spacing: 0
+                            anchors.horizontalCenter: parent.horizontalCenter
 
                             Row {
-                                anchors.centerIn: parent
-                                spacing: 8
-
-                                Text {
-                                    text: "󰒓"
-                                    color: "#3b82f6"
-                                    font.family: "JetBrains Mono Nerd Font"
-                                    font.pixelSize: 16
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-
-                                Text {
-                                    text: "Settings"
-                                    color: "#ffffff"
-                                    font.pixelSize: 13
-                                    font.weight: Font.Medium
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
+                                spacing: 4; height: parent.height
+                                Text { text: "󰻠"; color: root.cpuUsage > root.cpuWarningThreshold ? "#ef4444" : "#3b82f6"; font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: root.cpuUsage + "%"; color: "#888888"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
                             }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.controlCenterVisible = false
-                                    root.settingsVisible = true
-                                }
+                            Text { text: " │ "; color: "#444444"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
+                            Row {
+                                spacing: 4; height: parent.height
+                                Text { text: "󰔏"; color: root.cpuTemp > root.tempWarningThreshold ? "#ef4444" : (root.cpuTemp > 50 ? "#f59e0b" : "#22c55e"); font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: root.cpuTemp + "°C"; color: "#888888"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
+                            }
+                            Text { text: " │ "; color: "#444444"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
+                            Row {
+                                spacing: 4; height: parent.height
+                                Text { text: "󰘚"; color: root.ramUsage > root.ramWarningThreshold ? "#ef4444" : "#22c55e"; font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: root.ramUsage + "%"; color: "#888888"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
                             }
                         }
 
-                        // === LOCK & POWER ROW ===
+                        // Row 5: Lock & Power (compact)
                         Row {
-                            width: parent.width
-                            spacing: 8
-
-                            // Lock button
+                            width: parent.width; height: 32; spacing: 6
                             Rectangle {
-                                width: (parent.width - 8) / 2
-                                height: 40
-                                color: Qt.rgba(168, 85, 247, 0.15)  // Subtle purple
-                                radius: 8
-
+                                width: (parent.width - 6) / 2; height: 32; radius: 6
+                                color: Qt.rgba(168, 85, 247, 0.15)
                                 Row {
-                                    anchors.centerIn: parent
-                                    spacing: 8
-
-                                    Text {
-                                        text: "󰌾"
-                                        color: "#a855f7"
-                                        font.family: "JetBrains Mono Nerd Font"
-                                        font.pixelSize: 16
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-
-                                    Text {
-                                        text: "Lock"
-                                        color: "#a855f7"
-                                        font.pixelSize: 13
-                                        font.weight: Font.Medium
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
+                                    anchors.centerIn: parent; spacing: 6; height: parent.height
+                                    Text { text: "󰌾"; color: "#a855f7"; font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 14; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { text: "Lock"; color: "#a855f7"; font.pixelSize: 12; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
                                 }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        root.controlCenterVisible = false
-                                        lockProc.running = true
-                                    }
-                                }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.controlCenterVisible = false; lockProc.running = true } }
                             }
-
-                            // Power button
                             Rectangle {
-                                width: (parent.width - 8) / 2
-                                height: 40
-                                color: Qt.rgba(239, 68, 68, 0.15)  // Subtle red
-                                radius: 8
-
+                                width: (parent.width - 6) / 2; height: 32; radius: 6
+                                color: Qt.rgba(239, 68, 68, 0.15)
                                 Row {
-                                    anchors.centerIn: parent
-                                    spacing: 8
-
-                                    Text {
-                                        text: "󰐥"
-                                        color: "#ef4444"
-                                        font.family: "JetBrains Mono Nerd Font"
-                                        font.pixelSize: 16
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-
-                                    Text {
-                                        text: "Power"
-                                        color: "#ef4444"
-                                        font.pixelSize: 13
-                                        font.weight: Font.Medium
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
+                                    anchors.centerIn: parent; spacing: 6; height: parent.height
+                                    Text { text: "󰐥"; color: "#ef4444"; font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 14; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { text: "Power"; color: "#ef4444"; font.pixelSize: 12; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
                                 }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        root.controlCenterVisible = false
-                                        shutdownProc.running = true
-                                    }
-                                }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.controlCenterVisible = false; shutdownProc.running = true } }
                             }
                         }
                     }
                 }
             }
-
             // === SETTINGS POPUP ===
             PopupWindow {
                 id: settingsPopup
@@ -1507,6 +1007,12 @@ Scope {
                     onCleared: root.settingsVisible = false
                 }
 
+                // ESC to close
+                Item {
+                    focus: root.settingsVisible
+                    Keys.onEscapePressed: root.settingsVisible = false
+                }
+
                 Rectangle {
                     id: settingsContent
                     anchors.fill: parent
@@ -1518,6 +1024,30 @@ Scope {
                     transform: Translate { y: settingsPopup.slideOffset }
 
                     implicitHeight: settingsColumn.implicitHeight + 32
+
+                    // Close button - top right
+                    Rectangle {
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                        anchors.margins: 8
+                        width: 24; height: 24; radius: 12
+                        color: settingsCloseHover.containsMouse ? Qt.rgba(255, 255, 255, 0.1) : "transparent"
+                        z: 10
+                        Text {
+                            anchors.centerIn: parent
+                            text: "󰅖"
+                            color: settingsCloseHover.containsMouse ? "#ffffff" : "#888888"
+                            font.family: "JetBrains Mono Nerd Font"
+                            font.pixelSize: 14
+                        }
+                        MouseArea {
+                            id: settingsCloseHover
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.settingsVisible = false
+                        }
+                    }
 
                     Column {
                         id: settingsColumn
@@ -1545,56 +1075,333 @@ Scope {
                                 font.weight: Font.Medium
                                 anchors.verticalCenter: parent.verticalCenter
                             }
+                        }
 
-                            Item { width: 1; height: 1; Layout.fillWidth: true }
+                        // Tab Navigation
+                        Row {
+                            width: parent.width
+                            spacing: 4
 
-                            // Close button
-                            Text {
-                                text: "󰅖"
-                                color: "#888888"
-                                font.family: "JetBrains Mono Nerd Font"
-                                font.pixelSize: 14
-                                anchors.verticalCenter: parent.verticalCenter
+                            Repeater {
+                                model: [
+                                    { icon: "󰣆", label: "Apps" },
+                                    { icon: "󰥔", label: "Time" },
+                                    { icon: "󰀦", label: "Alerts" },
+                                    { icon: "󰃀", label: "Limits" }
+                                ]
 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.settingsVisible = false
+                                Rectangle {
+                                    required property var modelData
+                                    required property int index
+                                    width: (parent.width - 12) / 4
+                                    height: 32
+                                    radius: 6
+                                    color: root.settingsTab === index ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.05)
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData.icon
+                                        color: root.settingsTab === index ? "#ffffff" : "#888888"
+                                        font.family: "JetBrains Mono Nerd Font"
+                                        font.pixelSize: 14
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.settingsTab = index
+                                    }
                                 }
                             }
                         }
 
-                        // Placeholder content
-                        Rectangle {
+                        // === TAB 0: APPS ===
+                        Column {
+                            visible: root.settingsTab === 0
                             width: parent.width
-                            height: 120
-                            color: Qt.rgba(255, 255, 255, 0.05)
-                            radius: 8
+                            spacing: 12
 
                             Column {
-                                anchors.centerIn: parent
+                                width: parent.width
+                                spacing: 4
+                                Text { text: "Terminal"; color: "#888888"; font.pixelSize: 11 }
+                                Rectangle {
+                                    width: parent.width; height: 32; radius: 6
+                                    color: Qt.rgba(255, 255, 255, 0.08)
+                                    border.color: termInput.activeFocus ? "#3b82f6" : "transparent"
+                                    TextInput {
+                                        id: termInput
+                                        anchors.fill: parent; anchors.margins: 8
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        color: "#ffffff"; font.pixelSize: 12
+                                        text: root.terminalApp
+                                        onTextChanged: root.terminalApp = text
+                                    }
+                                }
+                            }
+
+                            Column {
+                                width: parent.width
+                                spacing: 4
+                                Text { text: "Network Manager"; color: "#888888"; font.pixelSize: 11 }
+                                Rectangle {
+                                    width: parent.width; height: 32; radius: 6
+                                    color: Qt.rgba(255, 255, 255, 0.08)
+                                    border.color: netInput.activeFocus ? "#3b82f6" : "transparent"
+                                    TextInput {
+                                        id: netInput
+                                        anchors.fill: parent; anchors.margins: 8
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        color: "#ffffff"; font.pixelSize: 12
+                                        text: root.networkManager
+                                        onTextChanged: root.networkManager = text
+                                    }
+                                }
+                            }
+
+                            Column {
+                                width: parent.width
+                                spacing: 4
+                                Text { text: "Bluetooth Manager"; color: "#888888"; font.pixelSize: 11 }
+                                Rectangle {
+                                    width: parent.width; height: 32; radius: 6
+                                    color: Qt.rgba(255, 255, 255, 0.08)
+                                    border.color: btInput.activeFocus ? "#3b82f6" : "transparent"
+                                    TextInput {
+                                        id: btInput
+                                        anchors.fill: parent; anchors.margins: 8
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        color: "#ffffff"; font.pixelSize: 12
+                                        text: root.bluetoothManager
+                                        onTextChanged: root.bluetoothManager = text
+                                    }
+                                }
+                            }
+                        }
+
+                        // === TAB 1: TIME ===
+                        Column {
+                            visible: root.settingsTab === 1
+                            width: parent.width
+                            spacing: 12
+
+                            Item {
+                                width: parent.width; height: 28
+                                Text {
+                                    text: "Format"
+                                    color: "#888888"; font.pixelSize: 12
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Row {
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 4
+                                    Rectangle {
+                                        width: 44; height: 28; radius: 6
+                                        color: root.timeFormat === "24h" ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.1)
+                                        Text { anchors.centerIn: parent; text: "24h"; color: "#ffffff"; font.pixelSize: 11 }
+                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.timeFormat = "24h" }
+                                    }
+                                    Rectangle {
+                                        width: 44; height: 28; radius: 6
+                                        color: root.timeFormat === "12h" ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.1)
+                                        Text { anchors.centerIn: parent; text: "12h"; color: "#ffffff"; font.pixelSize: 11 }
+                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.timeFormat = "12h" }
+                                    }
+                                }
+                            }
+
+                            Column {
+                                visible: root.timeFormat === "24h"
+                                width: parent.width
                                 spacing: 8
 
-                                Text {
-                                    text: "󰦖"
-                                    color: "#666666"
-                                    font.family: "JetBrains Mono Nerd Font"
-                                    font.pixelSize: 32
-                                    anchors.horizontalCenter: parent.horizontalCenter
+                                Item {
+                                    width: parent.width; height: 24
+                                    Text { text: "Show Suffix"; color: "#888888"; font.pixelSize: 12; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
+                                    Rectangle {
+                                        anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                                        width: 44; height: 24; radius: 12
+                                        color: root.timeSuffixEnabled ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.2)
+                                        Rectangle {
+                                            x: root.timeSuffixEnabled ? parent.width - width - 2 : 2; y: 2
+                                            width: 20; height: 20; radius: 10; color: "#ffffff"
+                                            Behavior on x { NumberAnimation { duration: 100 } }
+                                        }
+                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.timeSuffixEnabled = !root.timeSuffixEnabled }
+                                    }
                                 }
 
-                                Text {
-                                    text: "Settings coming soon"
-                                    color: "#888888"
-                                    font.pixelSize: 14
-                                    anchors.horizontalCenter: parent.horizontalCenter
+                                Rectangle {
+                                    visible: root.timeSuffixEnabled
+                                    width: parent.width; height: 32; radius: 6
+                                    color: Qt.rgba(255, 255, 255, 0.08)
+                                    TextInput {
+                                        anchors.fill: parent; anchors.margins: 8
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        color: "#ffffff"; font.pixelSize: 12
+                                        text: root.timeSuffix
+                                        onTextChanged: root.timeSuffix = text
+                                    }
                                 }
+                            }
+                        }
 
-                                Text {
-                                    text: "Modularity & customization options"
-                                    color: "#666666"
-                                    font.pixelSize: 12
-                                    anchors.horizontalCenter: parent.horizontalCenter
+                        // === TAB 2: ALERTS ===
+                        Column {
+                            visible: root.settingsTab === 2
+                            width: parent.width
+                            spacing: 16
+
+                            Column {
+                                width: parent.width; spacing: 4
+                                Item {
+                                    width: parent.width; height: 16
+                                    Text { text: "CPU Warning"; color: "#888888"; font.pixelSize: 11; anchors.left: parent.left }
+                                    Text { text: root.cpuWarningThreshold + "%"; color: "#ffffff"; font.pixelSize: 11; anchors.right: parent.right }
+                                }
+                                Item {
+                                    width: parent.width; height: 20
+                                    Rectangle {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width; height: 6; radius: 3
+                                        color: Qt.rgba(255, 255, 255, 0.2)
+                                        Rectangle { width: parent.width * (root.cpuWarningThreshold / 100); height: parent.height; radius: 3; color: "#ef4444" }
+                                        Rectangle { x: parent.width * (root.cpuWarningThreshold / 100) - 7; anchors.verticalCenter: parent.verticalCenter; width: 14; height: 14; radius: 7; color: "#ffffff" }
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                        onClicked: (mouse) => { root.cpuWarningThreshold = Math.max(10, Math.min(100, Math.round((mouse.x / width) * 100))) }
+                                        onPositionChanged: (mouse) => { if (pressed) root.cpuWarningThreshold = Math.max(10, Math.min(100, Math.round((mouse.x / width) * 100))) }
+                                    }
+                                }
+                            }
+
+                            Column {
+                                width: parent.width; spacing: 4
+                                Item {
+                                    width: parent.width; height: 16
+                                    Text { text: "Temperature"; color: "#888888"; font.pixelSize: 11; anchors.left: parent.left }
+                                    Text { text: root.tempWarningThreshold + "°C"; color: "#ffffff"; font.pixelSize: 11; anchors.right: parent.right }
+                                }
+                                Item {
+                                    width: parent.width; height: 20
+                                    Rectangle {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width; height: 6; radius: 3
+                                        color: Qt.rgba(255, 255, 255, 0.2)
+                                        Rectangle { width: parent.width * (root.tempWarningThreshold / 100); height: parent.height; radius: 3; color: "#f59e0b" }
+                                        Rectangle { x: parent.width * (root.tempWarningThreshold / 100) - 7; anchors.verticalCenter: parent.verticalCenter; width: 14; height: 14; radius: 7; color: "#ffffff" }
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                        onClicked: (mouse) => { root.tempWarningThreshold = Math.max(40, Math.min(100, Math.round((mouse.x / width) * 100))) }
+                                        onPositionChanged: (mouse) => { if (pressed) root.tempWarningThreshold = Math.max(40, Math.min(100, Math.round((mouse.x / width) * 100))) }
+                                    }
+                                }
+                            }
+
+                            Column {
+                                width: parent.width; spacing: 4
+                                Item {
+                                    width: parent.width; height: 16
+                                    Text { text: "RAM Warning"; color: "#888888"; font.pixelSize: 11; anchors.left: parent.left }
+                                    Text { text: root.ramWarningThreshold + "%"; color: "#ffffff"; font.pixelSize: 11; anchors.right: parent.right }
+                                }
+                                Item {
+                                    width: parent.width; height: 20
+                                    Rectangle {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width; height: 6; radius: 3
+                                        color: Qt.rgba(255, 255, 255, 0.2)
+                                        Rectangle { width: parent.width * (root.ramWarningThreshold / 100); height: parent.height; radius: 3; color: "#a855f7" }
+                                        Rectangle { x: parent.width * (root.ramWarningThreshold / 100) - 7; anchors.verticalCenter: parent.verticalCenter; width: 14; height: 14; radius: 7; color: "#ffffff" }
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                        onClicked: (mouse) => { root.ramWarningThreshold = Math.max(20, Math.min(100, Math.round((mouse.x / width) * 100))) }
+                                        onPositionChanged: (mouse) => { if (pressed) root.ramWarningThreshold = Math.max(20, Math.min(100, Math.round((mouse.x / width) * 100))) }
+                                    }
+                                }
+                            }
+
+                            Column {
+                                width: parent.width; spacing: 4
+                                Item {
+                                    width: parent.width; height: 16
+                                    Text { text: "Battery Critical"; color: "#888888"; font.pixelSize: 11; anchors.left: parent.left }
+                                    Text { text: root.batteryCriticalThreshold + "%"; color: "#ffffff"; font.pixelSize: 11; anchors.right: parent.right }
+                                }
+                                Item {
+                                    width: parent.width; height: 20
+                                    Rectangle {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width; height: 6; radius: 3
+                                        color: Qt.rgba(255, 255, 255, 0.2)
+                                        Rectangle { width: parent.width * (root.batteryCriticalThreshold / 30); height: parent.height; radius: 3; color: "#ef4444" }
+                                        Rectangle { x: parent.width * (root.batteryCriticalThreshold / 30) - 7; anchors.verticalCenter: parent.verticalCenter; width: 14; height: 14; radius: 7; color: "#ffffff" }
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                        onClicked: (mouse) => { root.batteryCriticalThreshold = Math.max(1, Math.min(30, Math.round((mouse.x / width) * 30))) }
+                                        onPositionChanged: (mouse) => { if (pressed) root.batteryCriticalThreshold = Math.max(1, Math.min(30, Math.round((mouse.x / width) * 30))) }
+                                    }
+                                }
+                            }
+                        }
+
+                        // === TAB 3: LIMITS ===
+                        Column {
+                            visible: root.settingsTab === 3
+                            width: parent.width
+                            spacing: 16
+
+                            Item {
+                                width: parent.width; height: 28
+                                Text { text: "Launcher Results"; color: "#888888"; font.pixelSize: 12; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
+                                Row {
+                                    anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; spacing: 2
+                                    Rectangle {
+                                        width: 28; height: 28; radius: 6
+                                        color: root.maxLauncherResults > 1 ? Qt.rgba(255, 255, 255, 0.1) : Qt.rgba(255, 255, 255, 0.05)
+                                        Text { anchors.centerIn: parent; text: "−"; color: "#ffffff"; font.pixelSize: 14 }
+                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.maxLauncherResults > 1) root.maxLauncherResults-- }
+                                    }
+                                    Rectangle {
+                                        width: 36; height: 28; radius: 6; color: Qt.rgba(255, 255, 255, 0.08)
+                                        Text { anchors.centerIn: parent; text: root.maxLauncherResults; color: "#ffffff"; font.pixelSize: 13; font.weight: Font.Medium }
+                                    }
+                                    Rectangle {
+                                        width: 28; height: 28; radius: 6
+                                        color: root.maxLauncherResults < 10 ? Qt.rgba(255, 255, 255, 0.1) : Qt.rgba(255, 255, 255, 0.05)
+                                        Text { anchors.centerIn: parent; text: "+"; color: "#ffffff"; font.pixelSize: 14 }
+                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.maxLauncherResults < 10) root.maxLauncherResults++ }
+                                    }
+                                }
+                            }
+
+                            Item {
+                                width: parent.width; height: 28
+                                Text { text: "Active Notifications"; color: "#888888"; font.pixelSize: 12; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
+                                Row {
+                                    anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; spacing: 2
+                                    Rectangle {
+                                        width: 28; height: 28; radius: 6
+                                        color: root.maxActiveNotifications > 1 ? Qt.rgba(255, 255, 255, 0.1) : Qt.rgba(255, 255, 255, 0.05)
+                                        Text { anchors.centerIn: parent; text: "−"; color: "#ffffff"; font.pixelSize: 14 }
+                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.maxActiveNotifications > 1) root.maxActiveNotifications-- }
+                                    }
+                                    Rectangle {
+                                        width: 36; height: 28; radius: 6; color: Qt.rgba(255, 255, 255, 0.08)
+                                        Text { anchors.centerIn: parent; text: root.maxActiveNotifications; color: "#ffffff"; font.pixelSize: 13; font.weight: Font.Medium }
+                                    }
+                                    Rectangle {
+                                        width: 28; height: 28; radius: 6
+                                        color: root.maxActiveNotifications < 10 ? Qt.rgba(255, 255, 255, 0.1) : Qt.rgba(255, 255, 255, 0.05)
+                                        Text { anchors.centerIn: parent; text: "+"; color: "#ffffff"; font.pixelSize: 14 }
+                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.maxActiveNotifications < 10) root.maxActiveNotifications++ }
+                                    }
                                 }
                             }
                         }
@@ -1631,6 +1438,12 @@ Scope {
                     active: root.notificationCenterVisible
                     windows: [ notificationCenterPopup ]
                     onCleared: root.notificationCenterVisible = false
+                }
+
+                // ESC to close
+                Item {
+                    focus: root.notificationCenterVisible
+                    Keys.onEscapePressed: root.notificationCenterVisible = false
                 }
 
                 Rectangle {
