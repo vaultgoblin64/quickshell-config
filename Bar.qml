@@ -15,6 +15,8 @@ Scope {
     property bool audioMuted: false
     property string networkStatus: "disconnected"
     property string networkIcon: "󰤭"
+    property bool networkConnected: networkStatus !== "disconnected"
+    property bool wifiEnabled: false
     property bool bluetoothEnabled: true
     property bool bluetoothConnected: false
     property int batteryPercent: 100
@@ -781,32 +783,32 @@ Scope {
                             // WiFi Toggle
                             Rectangle {
                                 width: (parent.width - 18) / 4; height: 36; radius: 6
-                                color: root.networkConnected ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.08)
+                                color: root.wifiEnabled ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.08)
                                 Text {
                                     anchors.centerIn: parent
-                                    text: root.networkConnected ? "󰤨" : "󰤭"
-                                    color: root.networkConnected ? "#ffffff" : "#888888"
+                                    text: root.wifiEnabled ? (root.networkConnected ? "󰤨" : "󰤯") : "󰤭"
+                                    color: root.wifiEnabled ? "#ffffff" : "#888888"
                                     font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 16
                                 }
                                 MouseArea {
                                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                    onClicked: Quickshell.exec(["sh", "-c", "nmcli networking " + (root.networkConnected ? "off" : "on")])
+                                    onClicked: toggleWifiProc.running = true
                                 }
                             }
 
                             // Bluetooth Toggle
                             Rectangle {
                                 width: (parent.width - 18) / 4; height: 36; radius: 6
-                                color: root.bluetoothConnected ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.08)
+                                color: root.bluetoothEnabled ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.08)
                                 Text {
                                     anchors.centerIn: parent
-                                    text: root.bluetoothConnected ? "󰂯" : "󰂲"
-                                    color: root.bluetoothConnected ? "#ffffff" : "#888888"
+                                    text: root.bluetoothEnabled ? (root.bluetoothConnected ? "󰂱" : "󰂯") : "󰂲"
+                                    color: root.bluetoothEnabled ? "#ffffff" : "#888888"
                                     font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 16
                                 }
                                 MouseArea {
                                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                    onClicked: Quickshell.exec(["sh", "-c", "bluetoothctl power " + (root.bluetoothConnected ? "off" : "on")])
+                                    onClicked: toggleBluetoothProc.running = true
                                 }
                             }
 
@@ -822,7 +824,7 @@ Scope {
                                 }
                                 MouseArea {
                                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                    onClicked: muteProc.running = true
+                                    onClicked: toggleMuteProc.running = true
                                 }
                             }
 
@@ -902,17 +904,18 @@ Scope {
                                 spacing: 4
                                 Repeater {
                                     model: [
-                                        { icon: "󰾆", profile: "power-saver" },
-                                        { icon: "󰾅", profile: "balanced" },
-                                        { icon: "󰓅", profile: "performance" }
+                                        { icon: "󰌪", profile: "power-saver", label: "Power Saver", yOffset: 0 },
+                                        { icon: "⚖", profile: "balanced", label: "Balanced", yOffset: -2 },
+                                        { icon: "󱐋", profile: "performance", label: "Performance", yOffset: 0 }
                                     ]
                                     Rectangle {
                                         required property var modelData
                                         width: 28; height: 24; radius: 4
-                                        color: root.powerProfile === modelData.profile ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.08)
+                                        color: root.powerProfile === modelData.label ? "#3b82f6" : Qt.rgba(255, 255, 255, 0.08)
                                         Text {
-                                            anchors.centerIn: parent; text: modelData.icon
-                                            color: root.powerProfile === modelData.profile ? "#ffffff" : "#666666"
+                                            anchors.centerIn: parent; anchors.verticalCenterOffset: modelData.yOffset
+                                            text: modelData.icon
+                                            color: root.powerProfile === modelData.label ? "#ffffff" : "#666666"
                                             font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 12
                                         }
                                         MouseArea {
@@ -956,9 +959,9 @@ Scope {
                                 width: (parent.width - 6) / 2; height: 32; radius: 6
                                 color: Qt.rgba(168, 85, 247, 0.15)
                                 Row {
-                                    anchors.centerIn: parent; spacing: 6; height: parent.height
-                                    Text { text: "󰌾"; color: "#a855f7"; font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 14; anchors.verticalCenter: parent.verticalCenter }
-                                    Text { text: "Lock"; color: "#a855f7"; font.pixelSize: 12; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
+                                    anchors.centerIn: parent; spacing: 6; height: 16
+                                    Text { text: "󰌾"; color: "#a855f7"; font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 14; height: 16; verticalAlignment: Text.AlignVCenter }
+                                    Text { text: "Lock"; color: "#a855f7"; font.pixelSize: 12; font.weight: Font.Medium; height: 16; verticalAlignment: Text.AlignVCenter }
                                 }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.controlCenterVisible = false; lockProc.running = true } }
                             }
@@ -966,9 +969,9 @@ Scope {
                                 width: (parent.width - 6) / 2; height: 32; radius: 6
                                 color: Qt.rgba(239, 68, 68, 0.15)
                                 Row {
-                                    anchors.centerIn: parent; spacing: 6; height: parent.height
-                                    Text { text: "󰐥"; color: "#ef4444"; font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 14; anchors.verticalCenter: parent.verticalCenter }
-                                    Text { text: "Power"; color: "#ef4444"; font.pixelSize: 12; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
+                                    anchors.centerIn: parent; spacing: 6; height: 16
+                                    Text { text: "󰐥"; color: "#ef4444"; font.family: "JetBrains Mono Nerd Font"; font.pixelSize: 14; height: 16; verticalAlignment: Text.AlignVCenter }
+                                    Text { text: "Power"; color: "#ef4444"; font.pixelSize: 12; font.weight: Font.Medium; height: 16; verticalAlignment: Text.AlignVCenter }
                                 }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.controlCenterVisible = false; shutdownProc.running = true } }
                             }
@@ -1858,20 +1861,26 @@ Scope {
     // Network status process
     Process {
         id: networkProc
-        command: ["sh", "-c", "nmcli -t -f TYPE,STATE,CONNECTION device 2>/dev/null | grep -E '^(wifi|ethernet)' | head -1 || echo 'disconnected'"]
+        command: ["sh", "-c", "echo \"wifi:$(nmcli radio wifi 2>/dev/null)\"; nmcli -t -f TYPE,STATE,CONNECTION device 2>/dev/null | grep -E '^(wifi|ethernet)' | head -1 || echo 'disconnected'"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
                 let output = this.text.trim()
+                // Check WiFi radio state
+                root.wifiEnabled = output.includes("wifi:enabled")
+                // Check connection state
                 if (output.includes("wifi") && output.includes("connected")) {
                     root.networkStatus = "wifi"
                     root.networkIcon = "󰤨"
                 } else if (output.includes("ethernet") && output.includes("connected")) {
                     root.networkStatus = "ethernet"
                     root.networkIcon = "󰈀"
+                } else if (root.wifiEnabled) {
+                    root.networkStatus = "disconnected"
+                    root.networkIcon = "󰤯"  // WiFi on but not connected
                 } else {
                     root.networkStatus = "disconnected"
-                    root.networkIcon = "󰤭"
+                    root.networkIcon = "󰤭"  // WiFi off
                 }
             }
         }
@@ -2081,7 +2090,7 @@ Scope {
     Process {
         id: setPowerProfileProc
         running: false
-        // Don't auto-refresh after setting - trust the UI state
+        onRunningChanged: if (!running) getPowerProfileProc.running = true
     }
 
     // Shutdown process
